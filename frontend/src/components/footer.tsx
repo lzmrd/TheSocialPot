@@ -1,0 +1,92 @@
+import Link from "next/link"
+import Image from "next/image"
+import { Github, Twitter, MessageCircle } from "lucide-react"
+
+export function Footer() {
+  return (
+    <footer className="border-t border-border bg-card py-12 px-4">
+      <div className="container mx-auto max-w-6xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="MegaYield" width={40} height={40} />
+              <span className="text-xl font-bold">MegaYield</span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The smart lottery with 10-year monthly payouts powered by blockchain and DeFi.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold mb-4">Platform</h4>
+            <div className="space-y-2">
+              <Link
+                href="/tickets"
+                className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Buy Tickets
+              </Link>
+              <Link
+                href="/dashboard"
+                className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/#how-it-works"
+                className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                How It Works
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-semibold mb-4">Resources</h4>
+            <div className="space-y-2">
+              <a href="#" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Documentation
+              </a>
+              <a href="#" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Smart Contracts
+              </a>
+              <a href="#" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Audit Report
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-semibold mb-4">Community</h4>
+            <div className="flex gap-4">
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Twitter className="w-5 h-5" />
+                <span className="sr-only">Twitter</span>
+              </a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Github className="w-5 h-5" />
+                <span className="sr-only">GitHub</span>
+              </a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <MessageCircle className="w-5 h-5" />
+                <span className="sr-only">Discord</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-muted-foreground">© 2025 MegaYield. All rights reserved.</p>
+          <div className="flex gap-6">
+            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Privacy Policy
+            </a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Terms of Service
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}

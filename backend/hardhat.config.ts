@@ -31,10 +31,37 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey: {
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-      base: process.env.BASESCAN_API_KEY || "",
-    },
+    // Use single Etherscan API key for all networks (API V2 requirement)
+    // Create key at: https://etherscan.io/apidashboard
+    // This key works for all supported chains (Base, Polygon, BSC, etc.)
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BASESCAN_API_KEY || "",
+    customChains: [
+      {
+        network: "baseSepolia",
+        chainId: 84532,
+        urls: {
+          // Use Etherscan API V2 endpoint with chainid=84532 for Base Sepolia
+          apiURL: "https://api.etherscan.io/v2/api?chainid=84532",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          // Use Etherscan API V2 endpoint with chainid=8453 for Base Mainnet
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
+          browserURL: "https://basescan.org"
+        }
+      }
+    ]
+  },
+  // Sourcify verification (NO API KEY REQUIRED!)
+  sourcify: {
+    enabled: true,
+    // Optional: specify API URL (default is https://sourcify.dev/server)
+    apiUrl: "https://sourcify.dev/server",
+    browserUrl: "https://sourcify.dev"
   },
   paths: {
     sources: "./contracts",

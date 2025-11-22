@@ -9,16 +9,17 @@ export const ADDRESSES = {
   baseSepolia: {
     // Pyth Entropy on Base Sepolia
     // Check: https://docs.pyth.network/entropy/contract-addresses
-    pythEntropy: "0x0000000000000000000000000000000000000000", // TODO: Update with actual address
+    // base-sepolia: 0x41c9e39574f40ad34c79f1c99b66a45efb830d4c (1 block delay, 500,000 wei fee)
+    pythEntropy: "0x41c9e39574f40ad34c79f1c99b66a45efb830d4c",
     
-    // Aave V3 Pool on Base Sepolia
-    aavePool: "0x0000000000000000000000000000000000000000", // TODO: Update with actual address
+    // Aave V3 Pool on Base Sepolia (OPZIONALE - skip per ora)
+    aavePool: "0x0000000000000000000000000000000000000000", // TODO: Update when needed
     
     // USDC on Base Sepolia (6 decimals)
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
     
-    // Estimated Pyth fee (in wei)
-    pythFee: "100000000000000", // 0.0001 ETH - adjust based on actual fees
+    // Pyth fee (in wei) - actual fee from docs: 500,000 wei (0.0005 ETH)
+    pythFee: "500000", // 500,000 wei = 0.0005 ETH
   },
   base: {
     // Pyth Entropy on Base Mainnet
