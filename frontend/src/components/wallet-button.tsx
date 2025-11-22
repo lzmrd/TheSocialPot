@@ -1,88 +1,63 @@
 "use client"
 
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi"
+import { injected } from "wagmi/connectors"
+import { baseSepolia } from "viem/chains"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Wallet, Copy, ExternalLink, LogOut, Check } from "lucide-react"
-import { useWeb3 } from "@/lib/web3-provider"
-import { useState } from "react"
+import { Wallet, LogOut } from "lucide-react"
 
 export function WalletButton() {
-  const { account, isConnected, isConnecting, connect, disconnect } = useWeb3()
-  const [copied, setCopied] = useState(false)
+  const { address, isConnected, chainId } = useAccount()
+  const { connect, isPending: isConnecting } = useConnect()
+  const { disconnect } = useDisconnect()
+  const { switchChain } = useSwitchChain()
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
+  const handleConnect = async () => {
+    try {
+      connect({
+        connector: injected(),
+        chainId: baseSepolia.id,
+      })
+    } catch (error) {
+      console.error("Error connecting:", error)
+    }
   }
 
-  const copyAddress = () => {
-    if (account) {
-      navigator.clipboard.writeText(account)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+  const handleSwitchChain = async () => {
+    if (chainId !== baseSepolia.id) {
+      try {
+        switchChain({ chainId: baseSepolia.id })
+      } catch (error) {
+        console.error("Error switching chain:", error)
+      }
     }
   }
 
   if (!isConnected) {
     return (
-      <Button
-        onClick={connect}
-        disabled={isConnecting}
-        className="bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-      >
+      <Button onClick={handleConnect} disabled={isConnecting} variant="outline">
         <Wallet className="w-4 h-4 mr-2" />
         {isConnecting ? "Connecting..." : "Connect Wallet"}
       </Button>
     )
   }
 
+  if (chainId !== baseSepolia.id) {
+    return (
+      <Button onClick={handleSwitchChain} variant="outline">
+        Switch to Base Sepolia
+      </Button>
+    )
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-          <Wallet className="w-4 h-4 mr-2" />
-          {formatAddress(account!)}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>My Wallet</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={copyAddress} className="cursor-pointer">
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 mr-2" />
-              Copied!
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Address
-            </>
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a
-            href={`https://basescan.org/address/${account}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="cursor-pointer"
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            View on Explorer
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={disconnect} className="cursor-pointer text-destructive">
-          <LogOut className="w-4 h-4 mr-2" />
-          Disconnect
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-mono">
+        {address?.slice(0, 6)}...{address?.slice(-4)}
+      </span>
+      <Button onClick={() => disconnect()} variant="outline" size="sm">
+        <LogOut className="w-4 h-4" />
+      </Button>
+    </div>
   )
 }

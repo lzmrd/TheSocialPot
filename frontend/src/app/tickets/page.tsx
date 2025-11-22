@@ -5,6 +5,7 @@ import { Footer } from "@/components/footer"
 import { TicketPurchase } from "@/components/ticket-purchase"
 import { JackpotInfo } from "@/components/jackpot-info"
 import { RecentWinners } from "@/components/recent-winners"
+import { PythVerification } from "@/components/pyth-verification"
 
 export default function TicketsPage() {
   return (
@@ -26,6 +27,7 @@ export default function TicketsPage() {
             <div className="space-y-6">
               <JackpotInfo />
               <RecentWinners />
+              <PythVerification />
             </div>
           </div>
         </div>

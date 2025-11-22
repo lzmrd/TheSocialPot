@@ -1,5 +1,4 @@
 import Link from "next/link"
-import Image from "next/image"
 import { Github, Twitter, MessageCircle } from "lucide-react"
 
 export function Footer() {
@@ -9,7 +8,9 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="MegaYield" width={40} height={40} />
+              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+                <img src="/logo.png" alt="MegaYield" width={40} height={40} className="w-full h-full object-contain" />
+              </div>
               <span className="text-xl font-bold">MegaYield</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">

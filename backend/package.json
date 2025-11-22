@@ -8,7 +8,9 @@
     "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network baseSepolia",
     "deploy:mainnet": "hardhat run scripts/deploy.ts --network base",
-    "node": "hardhat node"
+    "node": "hardhat node",
+    "simulate:local": "hardhat run scripts/simulate-local.ts",
+    "simulate:testnet": "hardhat run scripts/simulate-lottery.ts --network baseSepolia"
   },
   "keywords": [
     "blockchain",

@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
 import { Web3Provider } from "@/lib/web3-provider"
 import "./globals.css"
 
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
     "Win daily and receive monthly payments for 10 years. Powered by blockchain technology and Aave lending protocol.",
   generator: "v0.app",
   icons: {
-    icon: "/logo.png",
+    icon: "/logo.png?v=2",
   },
 }
 
@@ -25,7 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} font-sans antialiased`}>
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          {children}
+          <Toaster />
+        </Web3Provider>
         <Analytics />
       </body>
     </html>

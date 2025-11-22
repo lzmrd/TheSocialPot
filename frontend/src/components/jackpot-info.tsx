@@ -1,9 +1,44 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { TrendingUp, Clock, Users } from "lucide-react"
+import { TrendingUp, Clock, Users, Loader2 } from "lucide-react"
+import { useLottery } from "@/hooks/useLottery"
+import { useEffect, useState } from "react"
 
 export function JackpotInfo() {
+  const { dayInfo, formattedJackpot, isLoading } = useLottery()
+  const [timeUntilMidnight, setTimeUntilMidnight] = useState("")
+
+  useEffect(() => {
+    const updateTime = () => {
+      if (!dayInfo) return
+
+      const now = Date.now()
+      const startTime = Number(dayInfo.startTime) * 1000
+      const dayInMs = 24 * 60 * 60 * 1000
+      const nextMidnight = startTime + dayInMs
+      const timeLeft = nextMidnight - now
+
+      if (timeLeft <= 0) {
+        setTimeUntilMidnight("Drawing soon...")
+        return
+      }
+
+      const hours = Math.floor(timeLeft / (1000 * 60 * 60))
+      const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000)
+
+      setTimeUntilMidnight(`${hours}h ${minutes}m ${seconds}s`)
+    }
+
+    updateTime()
+    const interval = setInterval(updateTime, 1000)
+    return () => clearInterval(interval)
+  }, [dayInfo])
+
+  const jackpotNum = dayInfo ? Number(dayInfo.jackpot) / 1_000_000 : 0
+  const monthlyPayment = jackpotNum / 120
+
   return (
     <Card className="p-6">
       <div className="space-y-4">
@@ -15,7 +50,11 @@ export function JackpotInfo() {
               <TrendingUp className="w-4 h-4" />
               <span className="text-sm">Total Prize</span>
             </div>
-            <span className="text-2xl font-bold text-primary">$127,450</span>
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            ) : (
+              <span className="text-2xl font-bold text-primary">${parseFloat(formattedJackpot).toLocaleString()}</span>
+            )}
           </div>
 
           <div className="border-t border-border pt-4 space-y-3">
@@ -24,7 +63,7 @@ export function JackpotInfo() {
                 <Clock className="w-4 h-4" />
                 <span>Next Drawing</span>
               </div>
-              <span className="font-semibold">23h 14m 32s</span>
+              <span className="font-semibold">{timeUntilMidnight || "..."}</span>
             </div>
 
             <div className="flex items-center justify-between text-sm">
@@ -32,14 +71,16 @@ export function JackpotInfo() {
                 <Users className="w-4 h-4" />
                 <span>Tickets Sold</span>
               </div>
-              <span className="font-semibold">1,247</span>
+              <span className="font-semibold">
+                {isLoading ? "..." : dayInfo ? Number(dayInfo.ticketCount).toLocaleString() : "0"}
+              </span>
             </div>
           </div>
         </div>
 
         <div className="bg-accent/10 rounded-lg p-4 border border-accent/20">
           <p className="text-xs font-medium text-accent-foreground mb-1">Monthly Payment</p>
-          <p className="text-2xl font-bold text-accent">${(127450 / 120).toFixed(2)}</p>
+          <p className="text-2xl font-bold text-accent">${monthlyPayment.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground mt-1">For 120 months (10 years)</p>
         </div>
 

@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { WalletButton } from "@/components/wallet-button"
 
 export function Header() {
@@ -10,7 +9,16 @@ export function Header() {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="MegaYield" width={48} height={48} className="w-12 h-12" />
+            <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+              <img 
+                src="/logo.png" 
+                alt="MegaYield" 
+                width={48} 
+                height={48} 
+                className="w-full h-full object-contain" 
+                style={{ display: 'block' }}
+              />
+            </div>
             <span className="text-2xl font-bold text-foreground">MegaYield</span>
           </Link>
 

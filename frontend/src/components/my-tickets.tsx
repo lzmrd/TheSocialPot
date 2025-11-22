@@ -2,34 +2,16 @@
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Ticket, Clock, ExternalLink } from "lucide-react"
+import { Ticket, Clock, ExternalLink, Loader2 } from "lucide-react"
 import Link from "next/link"
-
-const tickets = [
-  {
-    id: "1",
-    drawDate: "Today, 12:00 AM UTC",
-    count: 12,
-    txHash: "0x8f7e...3d42",
-    status: "pending",
-  },
-  {
-    id: "2",
-    drawDate: "Yesterday",
-    count: 5,
-    txHash: "0x2a9b...7f81",
-    status: "not-won",
-  },
-  {
-    id: "3",
-    drawDate: "2 days ago",
-    count: 8,
-    txHash: "0x5c1d...a923",
-    status: "not-won",
-  },
-]
+import { useUserTickets } from "@/hooks/useUserTickets"
+import { useChainId } from "wagmi"
+import { NETWORK_CONFIG } from "@/config/contracts"
 
 export function MyTickets() {
+  const { tickets, isLoading } = useUserTickets()
+  const chainId = useChainId()
+  const explorerUrl = NETWORK_CONFIG[chainId as keyof typeof NETWORK_CONFIG]?.explorerUrl || "https://basescan.org"
   return (
     <Card className="p-6">
       <div className="space-y-6">
@@ -45,6 +27,19 @@ export function MyTickets() {
           </Link>
         </div>
 
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : tickets.length === 0 ? (
+          <div className="text-center py-12">
+            <Ticket className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-4">No tickets yet</p>
+            <Link href="/tickets">
+              <Button>Buy Your First Ticket</Button>
+            </Link>
+          </div>
+        ) : (
         <div className="space-y-3">
           {tickets.map((ticket) => (
             <div key={ticket.id} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors">
@@ -54,22 +49,32 @@ export function MyTickets() {
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{ticket.drawDate}</span>
                   </div>
-                  <p className="text-2xl font-bold text-primary">{ticket.count} Tickets</p>
+                    <p className="text-2xl font-bold text-primary">
+                      {Number(ticket.amount)} {Number(ticket.amount) === 1 ? "Ticket" : "Tickets"}
+                    </p>
                 </div>
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
                     ticket.status === "pending"
                       ? "bg-accent/20 text-accent-foreground"
+                        : ticket.status === "won"
+                        ? "bg-green-500/20 text-green-600 dark:text-green-400"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {ticket.status === "pending" ? "Pending Draw" : "Draw Complete"}
+                    {ticket.status === "pending"
+                      ? "Pending Draw"
+                      : ticket.status === "won"
+                      ? "Winner!"
+                      : "Draw Complete"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-mono">{ticket.txHash}</span>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {`${ticket.txHash.slice(0, 6)}...${ticket.txHash.slice(-4)}`}
+                  </span>
                 <a
-                  href={`https://basescan.org/tx/${ticket.txHash}`}
+                    href={`${explorerUrl}/tx/${ticket.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"
@@ -80,15 +85,6 @@ export function MyTickets() {
               </div>
             </div>
           ))}
-        </div>
-
-        {tickets.length === 0 && (
-          <div className="text-center py-12">
-            <Ticket className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground mb-4">No tickets yet</p>
-            <Link href="/tickets">
-              <Button>Buy Your First Ticket</Button>
-            </Link>
           </div>
         )}
       </div>
