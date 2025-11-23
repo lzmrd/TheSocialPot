@@ -18,8 +18,8 @@ export const ADDRESSES = {
     // USDC on Base Sepolia (6 decimals)
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
     
-    // Pyth fee (in wei) - actual fee from docs: 500,000 wei (0.0005 ETH)
-    pythFee: "500000", // 500,000 wei = 0.0005 ETH
+    // Pyth fee (in wei) - actual current fee: 0.000022244112000001 ETH
+    pythFee: "22244112000001", // 22,244,112,000,001 wei = 0.000022244112000001 ETH
   },
   base: {
     // Pyth Entropy on Base Mainnet

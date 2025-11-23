@@ -10,7 +10,8 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { formatEther, decodeEventLog } from "viem"
 import { useLottery } from "@/hooks/useLottery"
 
-const LOTTERY_ABI = lotteryAbi as any
+// Extract ABI from Hardhat artifact (which has structure { abi: [...] })
+const LOTTERY_ABI = (lotteryAbi as any).abi || lotteryAbi
 
 interface DrawHistory {
   txHash: string
@@ -37,7 +38,7 @@ export function PythVerification() {
   const explorerUrl = NETWORK_CONFIG[chainId as keyof typeof NETWORK_CONFIG]?.explorerUrl || "https://basescan.org"
   
   // Get lottery state to check conditions
-  const { dayInfo, isLoading: isLoadingLottery } = useLottery()
+  // Removed dayInfo and isLoadingLottery - no longer using getCurrentDayInfo
   
   // Use pythIntegration address from config as fallback
   const configPythIntegration = CONTRACT_ADDRESSES.baseSepolia.pythIntegration as `0x${string}`
@@ -154,9 +155,10 @@ export function PythVerification() {
     setIsLoadingHistory(true)
     try {
       // Get the current block number to limit search range
-      // Search last 100,000 blocks (approximately 2 weeks on Base)
+      // Search last 50,000 blocks (approximately 1 week on Base) to avoid RPC limits
       const currentBlock = await publicClient.getBlockNumber()
-      const fromBlock = currentBlock > BigInt(100000) ? currentBlock - BigInt(100000) : BigInt(0)
+      const maxRange = BigInt(50000) // Reduced to 50k to stay well under RPC limit
+      const fromBlock = currentBlock > maxRange ? currentBlock - maxRange : BigInt(0)
 
       // Get all RandomNumberRequested events
       const logs = await publicClient.getLogs({
@@ -168,7 +170,8 @@ export function PythVerification() {
             item.type === "event" && item.name === "RandomNumberRequested"
           )?.inputs || [],
         } as any,
-        fromBlock,
+        fromBlock: fromBlock,
+        toBlock: currentBlock,
       })
 
       const history: DrawHistory[] = []
@@ -240,18 +243,41 @@ export function PythVerification() {
     }
   }, [publicClient, pythContractAddress, loadDrawHistory])
 
-  const { writeContract, data: drawHash, isPending: isDrawing } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess: drawSuccess } = useWaitForTransactionReceipt({ hash: drawHash })
+  const { writeContract, data: drawHash, isPending: isDrawing, error: writeError } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess: drawSuccess, isError: isReceiptError } = useWaitForTransactionReceipt({ hash: drawHash })
 
   useEffect(() => {
     if (drawHash) {
+      console.log("Draw transaction hash received:", drawHash)
       setPythRequestTxHash(drawHash)
     }
   }, [drawHash])
 
+  // Log write errors
+  useEffect(() => {
+    if (writeError) {
+      console.error("Write contract error:", writeError)
+      const errorMessage = (writeError as any)?.message || (writeError as any)?.shortMessage || "Unknown error"
+      alert(`Transaction error: ${errorMessage}\n\nCheck console for details.`)
+    }
+  }, [writeError])
+
   const handleRequestDraw = async () => {
+    console.log("=== handleRequestDraw called ===")
+    console.log("requiredFee:", requiredFee)
+    console.log("isDrawing:", isDrawing)
+    console.log("isConfirming:", isConfirming)
+    console.log("isLoadingFee:", isLoadingFee)
+    console.log("lotteryAddress:", lotteryAddress)
+    
+    if (!address) {
+      alert("Please connect your wallet first")
+      return
+    }
+
     if (!requiredFee) {
       console.error("Required fee not available")
+      alert("Fee not available. Please wait for it to load.")
       return
     }
 
@@ -267,28 +293,47 @@ export function PythVerification() {
     console.log("Fee to use:", feeToUse.toString(), "wei")
     console.log("Fee to use in ETH:", formatEther(feeToUse))
     console.log("Expected: 15,000 gwei = 0.000015 ETH (from https://docs.pyth.network/entropy/current-fees)")
-    console.log("========================")
-
-    if (feeToUse < MIN_FEE) {
-      console.error("ERROR: Fee is too low! Using minimum fee of 15,000 gwei (0.000015 ETH)")
-    }
-
-    try {
-      writeContract({
+      console.log("Calling writeContract with:", {
         address: lotteryAddress,
-        abi: LOTTERY_ABI,
         functionName: "requestDrawWinner",
-        args: [BigInt(0)], // userRandomness = 0
-        value: feeToUse,
+        value: feeToUse.toString()
       })
-    } catch (error) {
+      console.log("========================")
+
+      if (feeToUse < MIN_FEE) {
+        console.error("ERROR: Fee is too low! Using minimum fee of 15,000 gwei (0.000015 ETH)")
+      }
+
+      try {
+        console.log("Calling writeContract...")
+        // writeContract is not async - it triggers the wallet prompt
+        writeContract({
+          address: lotteryAddress,
+          abi: LOTTERY_ABI,
+          functionName: "requestDrawWinner",
+          args: [], // Empty array for functions with no parameters
+          value: feeToUse,
+        })
+      console.log("writeContract called successfully - wallet prompt should appear")
+    } catch (error: any) {
       console.error("Error requesting draw:", error)
-      alert(`Transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      let errorMessage = "Unknown error"
+      
+      // Try to extract revert reason
+      if (error?.message) {
+        errorMessage = error.message
+      } else if ((error as any)?.shortMessage) {
+        errorMessage = (error as any).shortMessage
+      } else if (error?.cause?.data) {
+        errorMessage = `Revert reason: ${error.cause.data}`
+      }
+      
+      alert(`Transaction failed: ${errorMessage}\n\nCheck console for details.`)
     }
   }
   
   // Check if draw is possible
-  const canDraw = dayInfo && dayInfo.ticketCount > BigInt(0) && dayInfo.jackpot > BigInt(0)
+  // Removed canDraw check - no longer using dayInfo
 
   return (
     <Card className="p-6">
@@ -398,35 +443,24 @@ export function PythVerification() {
 
           {isConnected && (
             <div className="pt-4 border-t border-border space-y-3">
-              {!isLoadingLottery && dayInfo && (
-                <div className="bg-muted/50 rounded-lg p-3 space-y-2 text-xs">
-                  <p className="font-semibold">Lottery Status:</p>
-                  <div className="space-y-1">
-                    <p>Current Day: {dayInfo.currentDay.toString()}</p>
-                    <p>Jackpot: {formatEther(dayInfo.jackpot)} USDC</p>
-                    <p>Tickets: {dayInfo.ticketCount.toString()}</p>
-                  </div>
-                  {!canDraw && (
-                    <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400 mt-2">
-                      <AlertCircle className="w-4 h-4" />
-                      <p>
-                        {dayInfo.ticketCount === BigInt(0)
-                          ? "No tickets available. Purchase tickets first."
-                          : dayInfo.jackpot === BigInt(0)
-                          ? "No jackpot available. Purchase tickets first."
-                          : "Cannot draw at this time."}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
               <Button
                 onClick={handleRequestDraw}
-                disabled={isDrawing || isConfirming || !requiredFee || isLoadingFee || !canDraw || isLoadingLottery}
+                disabled={isDrawing || isConfirming || !requiredFee || isLoadingFee || !isConnected}
                 className="w-full"
                 variant="outline"
+                title={
+                  !isConnected 
+                    ? "Connect wallet first"
+                    : !requiredFee 
+                    ? "Fee not available"
+                    : isDrawing || isConfirming
+                    ? "Transaction in progress..."
+                    : "Click to request random number from Pyth"
+                }
               >
-                {isDrawing || isConfirming ? (
+                {!isConnected ? (
+                  "Connect Wallet First"
+                ) : isDrawing || isConfirming ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Requesting Random Number...
@@ -442,6 +476,11 @@ export function PythVerification() {
                   "Request Draw (Trigger Pyth)"
                 )}
               </Button>
+              {!isConnected && (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 text-center">
+                  Please connect your wallet to request a draw
+                </p>
+              )}
               {!requiredFee && !isLoadingFee && (
                 <p className="text-xs text-red-500 mt-2 text-center">
                   Unable to load required fee. Please check your network connection.
@@ -561,32 +600,123 @@ export function PythVerification() {
         <div className="bg-accent/10 rounded-lg p-4 border border-accent/20 mt-4">
             <div className="flex items-start gap-2 mb-2">
             <Info className="w-4 h-4 text-accent mt-0.5" />
-            <p className="text-xs font-semibold text-foreground">How to Verify Randomness from Pyth</p>
+            <p className="text-xs font-semibold text-foreground">How to Verify On-Chain That Randomness Comes from Pyth</p>
           </div>
-          <div className="text-xs text-muted-foreground space-y-2 leading-relaxed">
-            <p>
-              <strong>Step 1: Request Transaction</strong><br />
-              When <code className="bg-background px-1 rounded">requestDrawWinner()</code> is called, check the transaction on BaseScan. 
-              You'll see it calls Pyth Entropy's <code className="bg-background px-1 rounded">requestV2()</code> function internally.
-            </p>
-            <p>
-              <strong>Step 2: Verify Pyth Callback</strong><br />
-              Pyth automatically calls <code className="bg-background px-1 rounded">entropyCallback()</code> on our contract. 
-              The callback checks <code className="bg-background px-1 rounded">msg.sender == pythContract</code> to ensure 
-              the random bytes come directly from Pyth (not from anyone else).
-            </p>
-            <p>
-              <strong>Step 3: Check Events</strong><br />
-              On BaseScan, look for these events in order:
-            </p>
-            <ol className="list-decimal list-inside ml-2 space-y-1">
-              <li><code className="bg-background px-1 rounded">RandomNumberRequested</code> - Shows sequence number</li>
-              <li><code className="bg-background px-1 rounded">WinnerDrawn</code> - Confirms Pyth callback was executed</li>
-            </ol>
-            <p className="pt-2 border-t border-border/50">
-              <strong>🔒 Security:</strong> The random number can ONLY come from Pyth because the callback 
-              verifies <code className="bg-background px-1 rounded">msg.sender</code> matches the Pyth contract address.
-            </p>
+          <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+            <div>
+              <strong className="text-foreground">Step 1: Find the Request Transaction</strong>
+              <p className="mt-1">
+                Go to BaseScan and find the transaction where <code className="bg-background px-1 rounded">requestDrawWinner()</code> was called.
+                Look for the event <code className="bg-background px-1 rounded">RandomNumberRequested</code> with the sequence number.
+              </p>
+            </div>
+            
+            <div>
+              <strong className="text-foreground">Step 2: Check Internal Transactions</strong>
+              <p className="mt-1">
+                In the same transaction, scroll to <strong>"Internal Transactions"</strong> tab. You'll see:
+              </p>
+              <ul className="list-disc list-inside ml-3 mt-1 space-y-1">
+                <li><code className="bg-background px-1 rounded">PythIntegration.requestRandomNumber()</code> called</li>
+                <li>Which internally calls <code className="bg-background px-1 rounded">Pyth Entropy.requestV2()</code></li>
+                <li>This sends ETH to Pyth contract: <code className="bg-background px-1 rounded">0.000015 ETH</code></li>
+              </ul>
+            </div>
+
+            <div>
+              <strong className="text-foreground">Step 3: Find Pyth's Callback Transaction</strong>
+              <p className="mt-1">
+                After ~1 block, Pyth will call back. To find it:
+              </p>
+              <ol className="list-decimal list-inside ml-3 mt-1 space-y-1">
+                <li>Go to the <a href={`${explorerUrl}/address/${lotteryAddress}#internaltx`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Internal Transactions</a> of the lottery contract</li>
+                <li>Look for a transaction <strong>FROM</strong> <code className="bg-background px-1 rounded">{pythContractAddress ? `${pythContractAddress.slice(0, 10)}...${pythContractAddress.slice(-8)}` : "Pyth Contract"}</code></li>
+                <li>This transaction calls <code className="bg-background px-1 rounded">entropyCallback()</code> on our contract</li>
+              </ol>
+            </div>
+
+            <div>
+              <strong className="text-foreground">Step 4: Verify the Callback</strong>
+              <p className="mt-1">
+                In the callback transaction, check:
+              </p>
+              <ul className="list-disc list-inside ml-3 mt-1 space-y-1">
+                <li><strong>From:</strong> Must be Pyth Entropy contract address</li>
+                <li><strong>To:</strong> Our lottery contract address</li>
+                <li><strong>Function:</strong> <code className="bg-background px-1 rounded">entropyCallback(uint64,bytes32)</code></li>
+                <li><strong>Input Data:</strong> Contains the <code className="bg-background px-1 rounded">randomBytes</code> from Pyth</li>
+              </ul>
+            </div>
+
+            <div>
+              <strong className="text-foreground">Step 5: Check the Events</strong>
+              <p className="mt-1">
+                In the callback transaction, you'll see:
+              </p>
+              <ul className="list-disc list-inside ml-3 mt-1 space-y-1">
+                <li><code className="bg-background px-1 rounded">WinnerDrawn</code> event with the selected winner</li>
+                <li>This proves the random bytes were used to select the winner</li>
+              </ul>
+            </div>
+
+            <div>
+              <strong className="text-foreground">Step 6: Verify the Security Check</strong>
+              <p className="mt-1">
+                Check the contract code (verified on BaseScan). Look at <code className="bg-background px-1 rounded">entropyCallback()</code> function:
+              </p>
+              <pre className="bg-background p-2 rounded text-xs mt-1 overflow-x-auto">
+{`require(msg.sender == address(pythIntegration.pyth()),
+    "MegaYieldLottery: invalid callback caller");`}
+              </pre>
+              <p className="mt-1">
+                This check ensures ONLY Pyth can call this function. If the transaction succeeded, 
+                it means <code className="bg-background px-1 rounded">msg.sender</code> was verified to be the Pyth contract.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-border/50">
+              <strong className="text-foreground">🔒 Security Guarantee:</strong>
+              <p className="mt-1">
+                The random number can <strong>ONLY</strong> come from Pyth because:
+              </p>
+              <ul className="list-disc list-inside ml-3 mt-1 space-y-1">
+                <li>The callback verifies <code className="bg-background px-1 rounded">msg.sender == pythContract</code></li>
+                <li>Only Pyth contract can call <code className="bg-background px-1 rounded">entropyCallback()</code></li>
+                <li>All of this is verifiable on-chain on BaseScan</li>
+              </ul>
+            </div>
+
+            <div className="pt-2 border-t border-border/50">
+              <strong className="text-foreground">Quick Links:</strong>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <a
+                  href={`${explorerUrl}/address/${lotteryAddress}#internaltx`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline text-xs"
+                >
+                  Lottery Internal Txs
+                </a>
+                {pythContractAddress && (
+                  <a
+                    href={`${explorerUrl}/address/${pythContractAddress}#internaltx`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline text-xs"
+                  >
+                    Pyth Internal Txs
+                  </a>
+                )}
+                <a
+                  href={`${explorerUrl}/address/${lotteryAddress}#code`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline text-xs"
+                >
+                  View Contract Code
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>

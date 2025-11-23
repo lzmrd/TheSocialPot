@@ -10,12 +10,7 @@ import erc20Abi from "@/abis/ERC20.json"
 const LOTTERY_ABI = lotteryAbi as any
 const ERC20_ABI = erc20Abi as any
 
-export interface DayInfo {
-  currentDay: bigint
-  jackpot: bigint
-  ticketCount: bigint
-  startTime: bigint
-}
+// DayInfo interface removed - no longer using getCurrentDayInfo
 
 export function useLottery() {
   const { address, isConnected } = useAccount()
@@ -25,17 +20,12 @@ export function useLottery() {
   const isPurchaseTxRef = useRef(false)
   const purchaseTxHashRef = useRef<string | null>(null)
   const [purchaseSuccess, setPurchaseSuccess] = useState(false)
+  const pendingPurchaseRef = useRef<{ amount: number; referrer?: string } | null>(null)
 
   const lotteryAddress = CONTRACT_ADDRESSES.baseSepolia.lottery as `0x${string}`
   const usdcAddress = CONTRACT_ADDRESSES.baseSepolia.usdc as `0x${string}`
 
   // Read contract data
-  const { data: dayInfoData, refetch: refetchDayInfo } = useReadContract({
-    address: lotteryAddress,
-    abi: LOTTERY_ABI,
-    functionName: "getCurrentDayInfo",
-  })
-
   const { data: ticketPrice } = useReadContract({
     address: lotteryAddress,
     abi: LOTTERY_ABI,
@@ -64,21 +54,10 @@ export function useLottery() {
     abi: LOTTERY_ABI,
     eventName: "TicketPurchased",
     onLogs() {
-      refetchDayInfo()
       // Mark purchase as successful when event is detected and we have a purchase tx hash
       if (isPurchaseTxRef.current && purchaseTxHashRef.current) {
         setPurchaseSuccess(true)
       }
-    },
-  })
-
-  // Watch for winner drawn events
-  useWatchContractEvent({
-    address: lotteryAddress,
-    abi: LOTTERY_ABI,
-    eventName: "WinnerDrawn",
-    onLogs() {
-      refetchDayInfo()
     },
   })
 
@@ -93,26 +72,45 @@ export function useLottery() {
     }
   }, [hash])
 
-  // Refresh when transaction succeeds
+  // Refresh when transaction succeeds and handle automatic purchase after approval
   useEffect(() => {
-    if (isSuccess && hash && purchaseTxHashRef.current === hash) {
-      refetchDayInfo()
-      // If this is a purchase transaction (not approval), mark as successful
-      setPurchaseSuccess(true)
-    } else if (isSuccess && hash) {
-      // This was an approval, just refresh data
-      refetchDayInfo()
-    }
-  }, [isSuccess, hash, refetchDayInfo])
-
-  const dayInfo: DayInfo | null = dayInfoData
-    ? {
-        currentDay: dayInfoData[0],
-        jackpot: dayInfoData[1],
-        ticketCount: dayInfoData[2],
-        startTime: dayInfoData[3],
+    if (isSuccess && hash) {
+      if (purchaseTxHashRef.current === hash) {
+        // This was a purchase transaction
+        setPurchaseSuccess(true)
+        pendingPurchaseRef.current = null // Clear pending purchase
+      } else {
+        // This was an approval transaction
+        
+        // If we have a pending purchase, automatically execute it after approval
+        if (pendingPurchaseRef.current && ticketPrice && address) {
+          const { amount, referrer } = pendingPurchaseRef.current
+          const totalCost = ticketPrice * BigInt(amount)
+          const referrerAddress = referrer && referrer.trim() 
+            ? (referrer.trim() as `0x${string}`) 
+            : "0x0000000000000000000000000000000000000000"
+          
+          // Small delay to ensure allowance is updated on-chain
+          const timeoutId = setTimeout(() => {
+            // Mark as purchase transaction
+            isPurchaseTxRef.current = true
+            setPurchaseSuccess(false)
+            
+            // Buy tickets automatically
+            writeContract({
+              address: lotteryAddress,
+              abi: LOTTERY_ABI,
+              functionName: "buyTicket",
+              args: [BigInt(amount), referrerAddress],
+            })
+          }, 2000) // Wait 2 seconds for allowance to be updated on-chain
+          
+          // Cleanup timeout if component unmounts
+          return () => clearTimeout(timeoutId)
+        }
       }
-    : null
+    }
+  }, [isSuccess, hash, ticketPrice, lotteryAddress, address, writeContract])
 
   const buyTickets = async (amount: number, referrer?: string) => {
     if (!address || !ticketPrice) {
@@ -127,19 +125,26 @@ export function useLottery() {
       // Approve USDC - this is NOT a purchase transaction
       isPurchaseTxRef.current = false
       setPurchaseSuccess(false)
+      
+      // Store the purchase parameters to use after approval
+      pendingPurchaseRef.current = { amount, referrer }
+      
+      // Approve USDC
       writeContract({
         address: usdcAddress,
         abi: ERC20_ABI,
         functionName: "approve",
         args: [lotteryAddress, totalCost],
       })
-      // Wait for approval before buying
+      
+      // The useEffect will automatically call buyTicket after approval is confirmed
       return
     }
 
     // Reset purchase success state and mark this as a purchase transaction
     setPurchaseSuccess(false)
     isPurchaseTxRef.current = true
+    pendingPurchaseRef.current = null // Clear any pending purchase
 
     // Buy tickets
     writeContract({
@@ -154,15 +159,12 @@ export function useLottery() {
   const explorerUrl = NETWORK_CONFIG[chainId as keyof typeof NETWORK_CONFIG]?.explorerUrl || "https://basescan.org"
 
   return {
-    dayInfo,
     ticketPrice: ticketPrice || null,
     usdcBalance: usdcBalance || null,
     usdcAllowance: usdcAllowance || null,
-    isLoading: !dayInfoData || !ticketPrice,
+    isLoading: !ticketPrice,
     isBuying: isBuying || isConfirming,
     buyTickets,
-    refreshData: refetchDayInfo,
-    formattedJackpot: dayInfo ? formatUSDC(dayInfo.jackpot) : "0.00",
     formattedBalance: usdcBalance ? formatUSDC(usdcBalance) : "0.00",
     // New fields for purchase success tracking
     purchaseTxHash: purchaseSuccess && purchaseTxHashRef.current ? purchaseTxHashRef.current : null,

@@ -5,10 +5,10 @@
 
 export const CONTRACT_ADDRESSES = {
   baseSepolia: {
-    lottery: "0xbC5EBBe3E9B2f5624B93327005979C494aBCaE2D",
-    vesting: "0xB86965556f85FdE426B98184304427aC964b1b16",
+    lottery: "0x28645Ac9f3FF24f1623CbD65A6D7d9122d6b9a07",
+    vesting: "0x7314251E4CEb115fbA106f84BB5B7Ef8a6ABae3E",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    pythIntegration: "0x71ab3BCf5df12bC46B932aAe7f6e6369393614c4",
+    pythIntegration: "0x0f3AcD9aF35f1970A8ceef26dF5484E7C2245840",
   },
   base: {
     // TODO: Update when deployed to mainnet

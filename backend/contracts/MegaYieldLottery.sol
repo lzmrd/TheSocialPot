@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "../interfaces/IPythEntropy.sol";
-import "../interfaces/IEntropyConsumer.sol";
+import "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
+import "@pythnetwork/entropy-sdk-solidity/IEntropy.sol";
+import "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 import "./PythIntegration.sol";
 import "./MegaYieldVesting.sol";
 
@@ -159,43 +160,49 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
 
     /**
      * @notice Request random number from Pyth for drawing winner
-     * @param userRandomness Additional user-provided randomness (optional, can be 0)
      * @dev Uses callback pattern - Pyth will call entropyCallback() when ready
+     * Note: userRandomness is no longer needed - Pyth generates it internally
      */
-    function requestDrawWinner(uint256 userRandomness) external payable {
+    function requestDrawWinner() external payable {
         uint256 today = block.timestamp / SECONDS_PER_DAY;
         
-        // Check if we can draw for today
-        require(today >= currentDay, "MegaYieldLottery: cannot draw for future day");
-        require(!dayDrawn[today], "MegaYieldLottery: winner already drawn for this day");
-        require(currentJackpot > 0, "MegaYieldLottery: no jackpot to draw");
-
         // Check if new day has started
         if (today > currentDay) {
             _resetDay(today);
         }
 
-        // Check if there are any tickets
-        require(currentDayTickets.length > 0, "MegaYieldLottery: no tickets for this day");
+        // Simplified: Only check if day already drawn (prevent double drawing)
+        require(!dayDrawn[today], "MegaYieldLottery: winner already drawn for this day");
 
-        // Request random number from Pyth using callback pattern
+        // Request random number from Pyth using callback pattern (following coinflip tutorial)
         // Pyth will call entropyCallback() on this contract when ready
-        uint64 sequenceNumber = pythIntegration.requestRandomNumber{value: msg.value}(
-            IEntropyConsumer(address(this)), // This contract will receive the callback
-            userRandomness
-        );
+        // Use IEntropyV2 to get the correct fee with getFeeV2()
+        IEntropyV2 entropyV2 = IEntropyV2(address(pythIntegration.pyth()));
+        
+        // Get fee dynamically using getFeeV2() (getFee() returns 1 and doesn't work)
+        uint128 requiredFee;
+        try entropyV2.getFeeV2() returns (uint128 fee) {
+            requiredFee = fee;
+        } catch {
+            // Fallback to current fee for Base Sepolia if getFeeV2() fails
+            requiredFee = 22244112000001; // 0.000022244112000001 ETH (current fee for Base Sepolia)
+        }
+        
+        require(msg.value >= requiredFee, "MegaYieldLottery: insufficient fee");
+        
+        // Call requestV2() - Pyth generates userRandomness internally
+        // requestV2() uses default provider and generates userRandomness internally
+        // The callback will go to entropyCallback() on this contract
+        uint64 sequenceNumber = entropyV2.requestV2{value: requiredFee}();
+        
+        // Refund excess ETH if any
+        if (msg.value > requiredFee) {
+            payable(msg.sender).transfer(msg.value - requiredFee);
+        }
         
         // Store mapping from sequence to day
         sequenceToDay[sequenceNumber] = today;
         sequenceProcessed[sequenceNumber] = false;
-
-        // Refund excess ETH if any
-        if (msg.value > 0) {
-            uint256 requiredFee = pythIntegration.getRequiredFee();
-            if (msg.value > requiredFee) {
-                payable(msg.sender).transfer(msg.value - requiredFee);
-            }
-        }
 
         emit RandomNumberRequested(sequenceNumber, today);
     }
@@ -208,10 +215,33 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
      * Based on Pyth Entropy best practices: callback pattern
      * Pyth calls this function directly, not through PythIntegration
      */
-    function entropyCallback(uint64 sequenceNumber, bytes32 randomBytes) external override {
-        // Verify caller is Pyth Entropy contract (Pyth calls callback directly)
-        require(msg.sender == address(pythIntegration.pyth()), 
-                "MegaYieldLottery: invalid callback caller - must be from Pyth Entropy");
+    /**
+     * @notice Get the Entropy contract address (required by IEntropyConsumer)
+     * @return The address of the Pyth Entropy contract
+     */
+    function getEntropy() internal view override returns (address) {
+        return address(pythIntegration.pyth());
+    }
+
+    /**
+     * @notice Callback function called by Pyth Entropy when random number is ready
+     * @param sequenceNumber The sequence number of the request
+     * @param provider The provider address that fulfilled the request
+     * @param randomNumber Random bytes provided by Pyth Entropy
+     * @dev This is called automatically by Pyth Entropy contract via _entropyCallback
+     */
+    function entropyCallback(
+        uint64 sequenceNumber,
+        address provider,
+        bytes32 randomNumber
+    ) internal override {
+        // VERIFICA CHIAVE: Il callback può essere chiamato solo da Pyth
+        // getEntropy() restituisce l'indirizzo di Pyth, e l'interfaccia IEntropyConsumer
+        // verifica che msg.sender sia Pyth prima di chiamare questo callback
+        // Questo garantisce che il numero casuale provenga DAVVERO da Pyth, non generato localmente
+        address pythAddress = getEntropy();
+        require(pythAddress != address(0), "MegaYieldLottery: Pyth address not set");
+        
         require(!sequenceProcessed[sequenceNumber], "MegaYieldLottery: sequence already processed");
 
         uint256 dayToDraw = sequenceToDay[sequenceNumber];
@@ -221,8 +251,14 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Mark as processed
         sequenceProcessed[sequenceNumber] = true;
 
-        // Draw winner using the random bytes
-        _drawWinnerWithRandom(dayToDraw, randomBytes);
+        // Simplified: Only draw if we have tickets and jackpot, otherwise just emit event
+        if (currentDayTickets.length > 0 && currentJackpot > 0) {
+            _drawWinnerWithRandom(dayToDraw, randomNumber);
+        } else {
+            // No tickets/jackpot - just mark as drawn to prevent re-drawing
+            dayDrawn[dayToDraw] = true;
+            emit WinnerDrawn(dayToDraw, address(0), 0);
+        }
     }
 
     /**

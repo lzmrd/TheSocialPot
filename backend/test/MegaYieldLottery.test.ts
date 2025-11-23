@@ -68,8 +68,7 @@ describe("MegaYieldLottery", function () {
     // Deploy PythIntegration
     const PythIntegration = await ethers.getContractFactory("PythIntegration");
     pythIntegration = await PythIntegration.deploy(
-      await mockPyth.getAddress(),
-      PYTH_FEE
+      await mockPyth.getAddress()
     );
     await pythIntegration.waitForDeployment();
 
@@ -372,6 +371,129 @@ describe("MegaYieldLottery", function () {
       // Check Aave balance (should have deposited)
       const aaveBalance = await vesting.getAaveBalance();
       expect(aaveBalance).to.be.gte(vestingAmount);
+    });
+
+    it("Should receive random number from Pyth and use it correctly", async function () {
+      // Questo test verifica accuratamente che:
+      // 1. Il numero casuale proviene da Pyth (MockPyth nel test locale)
+      // 2. Il numero casuale non è generato localmente nel contratto
+      // 3. Il vincitore selezionato è coerente con il numero casuale di Pyth
+      
+      // Get current day info and tickets
+      const dayInfo = await lottery.getCurrentDayInfo();
+      const tickets = [user1.address, user2.address, user3.address];
+      const ticketCount = tickets.length;
+
+      // Request random number from Pyth
+      const tx = await lottery.connect(owner).requestDrawWinner({ value: PYTH_FEE });
+      const receipt = await tx.wait();
+      
+      // Extract sequence number from event
+      const randomNumberRequestedEvent = receipt?.logs.find(
+        (log: any) => {
+          try {
+            const parsed = lottery.interface.parseLog(log);
+            return parsed?.name === "RandomNumberRequested";
+          } catch {
+            return false;
+          }
+        }
+      );
+      
+      expect(randomNumberRequestedEvent).to.not.be.undefined;
+      const parsedEvent = lottery.interface.parseLog(randomNumberRequestedEvent!);
+      const sequenceNumber = parsedEvent?.args[0] as bigint;
+      expect(sequenceNumber).to.be.gt(0);
+
+      // Verifica che la richiesta sia stata registrata in MockPyth
+      // Questo conferma che la richiesta è andata a Pyth, non generata localmente
+      const isRevealedBefore = await mockPyth.isRevealed(sequenceNumber);
+      expect(isRevealedBefore).to.be.false; // Non ancora rivelato
+
+      // Ottieni userRandomness direttamente da MockPyth (quello che Pyth ha ricevuto)
+      const userRandomness = await mockPyth.getUserRandomness(sequenceNumber);
+      expect(userRandomness).to.be.gt(0);
+
+      // Advance time to allow callback
+      await increaseTime(1);
+      await ethers.provider.send("evm_mine", []);
+
+      // Get the block info when callback will be executed
+      const callbackBlock = await ethers.provider.getBlock("latest");
+      const callbackBlockNumber = callbackBlock!.number;
+      const callbackTimestamp = callbackBlock!.timestamp;
+
+      // Get blockhash of previous block (block.number - 1 when callback executes)
+      // Questo è usato da MockPyth per generare il numero casuale
+      const prevBlockHash = await ethers.provider.send("eth_getBlockByNumber", [
+        `0x${(callbackBlockNumber - 1).toString(16)}`,
+        false
+      ]);
+      const prevBlockHashBytes = prevBlockHash.hash;
+
+      // Nota: Invece di calcolare il numero casuale, lo leggeremo direttamente dall'evento
+      // emesso da MockPyth quando esegue il callback. Questo garantisce che usiamo
+      // esattamente lo stesso numero casuale che MockPyth ha generato e passato al contratto.
+
+      // Execute callback from MockPyth (simula Pyth che chiama il callback)
+      const callbackTx = await mockPyth.executeCallback(sequenceNumber);
+      const callbackReceipt = await callbackTx.wait();
+
+      // Estrai il numero casuale generato da MockPyth dall'evento CallbackExecuted
+      const callbackExecutedEvent = callbackReceipt?.logs.find(
+        (log: any) => {
+          try {
+            const parsed = mockPyth.interface.parseLog(log);
+            return parsed?.name === "CallbackExecuted";
+          } catch {
+            return false;
+          }
+        }
+      );
+      
+      expect(callbackExecutedEvent).to.not.be.undefined;
+      const parsedCallbackEvent = mockPyth.interface.parseLog(callbackExecutedEvent!);
+      const actualRandomBytes = parsedCallbackEvent?.args[1] as string; // randomBytes è il secondo argomento
+      
+      // Usa il numero casuale REALE generato da MockPyth invece di calcolarlo
+      const expectedRandomBytes = actualRandomBytes;
+
+      // Verifica che il callback sia stato eseguito
+      const isRevealedAfter = await mockPyth.isRevealed(sequenceNumber);
+      expect(isRevealedAfter).to.be.true;
+
+      // Verify that the winner was drawn
+      const winner = await lottery.getWinner(dayInfo._currentDay);
+      expect(winner).to.not.equal(ethers.ZeroAddress);
+      expect(tickets).to.include(winner);
+
+      // VERIFICA CHIAVE: Il vincitore deve corrispondere al calcolo basato sul numero casuale di Pyth
+      // Se il vincitore corrisponde, significa che il numero casuale proviene da Pyth
+      // e non è stato generato localmente nel contratto
+      const randomNumber = BigInt(expectedRandomBytes);
+      const expectedWinnerIndex = Number(randomNumber % BigInt(ticketCount));
+      const expectedWinner = tickets[expectedWinnerIndex];
+      
+      // Questa è l'asserzione chiave: il vincitore DEVE corrispondere al calcolo basato sul numero casuale di Pyth
+      expect(winner.toLowerCase()).to.equal(expectedWinner.toLowerCase(), 
+        "Il vincitore deve essere selezionato basandosi sul numero casuale di Pyth, non generato localmente");
+
+      // Verifica che il numero casuale sia stato effettivamente usato (non generato localmente)
+      const dayDrawn = await lottery.dayDrawn(dayInfo._currentDay);
+      expect(dayDrawn).to.be.true;
+
+      // Verifica aggiuntiva: controlla che il sequence number sia stato processato
+      const sequenceProcessed = await lottery.sequenceProcessed(sequenceNumber);
+      expect(sequenceProcessed).to.be.true;
+
+      // Verifica finale: l'indice del vincitore deve corrispondere al calcolo
+      const actualWinnerIndex = tickets.findIndex(t => t.toLowerCase() === winner.toLowerCase());
+      expect(actualWinnerIndex).to.equal(expectedWinnerIndex,
+        "L'indice del vincitore deve corrispondere al calcolo basato sul numero casuale di Pyth");
+      
+      console.log(`✓ Numero casuale ricevuto da Pyth: 0x${expectedRandomBytes.slice(2)}`);
+      console.log(`✓ Vincitore selezionato: ${winner} (indice ${actualWinnerIndex})`);
+      console.log(`✓ Verificato che il numero casuale proviene da Pyth e non è generato localmente`);
     });
   });
 

@@ -6,17 +6,15 @@ import { useLottery } from "@/hooks/useLottery"
 import { useEffect, useState } from "react"
 
 export function JackpotInfo() {
-  const { dayInfo, formattedJackpot, isLoading } = useLottery()
+  const { isLoading } = useLottery()
   const [timeUntilMidnight, setTimeUntilMidnight] = useState("")
 
   useEffect(() => {
     const updateTime = () => {
-      if (!dayInfo) return
-
       const now = Date.now()
-      const startTime = Number(dayInfo.startTime) * 1000
-      const dayInMs = 24 * 60 * 60 * 1000
-      const nextMidnight = startTime + dayInMs
+      const utcMidnight = new Date()
+      utcMidnight.setUTCHours(24, 0, 0, 0) // Next midnight UTC
+      const nextMidnight = utcMidnight.getTime()
       const timeLeft = nextMidnight - now
 
       if (timeLeft <= 0) {
@@ -34,10 +32,10 @@ export function JackpotInfo() {
     updateTime()
     const interval = setInterval(updateTime, 1000)
     return () => clearInterval(interval)
-  }, [dayInfo])
+  }, [])
 
-  const jackpotNum = dayInfo ? Number(dayInfo.jackpot) / 1_000_000 : 0
-  const monthlyPayment = jackpotNum / 120
+  const jackpotNum = 0
+  const monthlyPayment = 0
 
   return (
     <Card className="p-6">
@@ -50,11 +48,7 @@ export function JackpotInfo() {
               <TrendingUp className="w-4 h-4" />
               <span className="text-sm">Total Prize</span>
             </div>
-            {isLoading ? (
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            ) : (
-              <span className="text-2xl font-bold text-primary">${parseFloat(formattedJackpot).toLocaleString()}</span>
-            )}
+            <span className="text-2xl font-bold text-primary">$0</span>
           </div>
 
           <div className="border-t border-border pt-4 space-y-3">
@@ -71,9 +65,7 @@ export function JackpotInfo() {
                 <Users className="w-4 h-4" />
                 <span>Tickets Sold</span>
               </div>
-              <span className="font-semibold">
-                {isLoading ? "..." : dayInfo ? Number(dayInfo.ticketCount).toLocaleString() : "0"}
-              </span>
+              <span className="font-semibold">0</span>
             </div>
           </div>
         </div>

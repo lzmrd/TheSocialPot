@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi"
 import { injected } from "wagmi/connectors"
 import { baseSepolia } from "viem/chains"
@@ -7,10 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Wallet, LogOut } from "lucide-react"
 
 export function WalletButton() {
+  const [mounted, setMounted] = useState(false)
   const { address, isConnected, chainId } = useAccount()
   const { connect, isPending: isConnecting } = useConnect()
   const { disconnect } = useDisconnect()
   const { switchChain } = useSwitchChain()
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleConnect = async () => {
     try {
@@ -31,6 +38,16 @@ export function WalletButton() {
         console.error("Error switching chain:", error)
       }
     }
+  }
+
+  // Return a placeholder during SSR to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <Button disabled variant="outline">
+        <Wallet className="w-4 h-4 mr-2" />
+        Connect Wallet
+      </Button>
+    )
   }
 
   if (!isConnected) {

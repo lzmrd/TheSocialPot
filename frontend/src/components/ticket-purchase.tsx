@@ -15,6 +15,7 @@ import Link from "next/link"
 export function TicketPurchase() {
   const [ticketCount, setTicketCount] = useState(1)
   const [referralCode, setReferralCode] = useState("")
+  const [mounted, setMounted] = useState(false)
   const { isConnected } = useAccount()
   const { 
     ticketPrice, 
@@ -27,6 +28,11 @@ export function TicketPurchase() {
     explorerUrl, 
     resetPurchaseSuccess 
   } = useLottery()
+
+  // Prevent hydration mismatch by only rendering wallet-dependent content after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const incrementTickets = () => setTicketCount((prev) => Math.min(prev + 1, 100))
   const decrementTickets = () => setTicketCount((prev) => Math.max(prev - 1, 1))
@@ -186,7 +192,7 @@ export function TicketPurchase() {
                 {isLoading ? "..." : `${ticketPriceNum.toFixed(2)} USDC`}
               </span>
             </div>
-            {isConnected && (
+            {mounted && isConnected && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Your USDC Balance</span>
                 <span className="font-medium">{formattedBalance} USDC</span>
@@ -212,7 +218,7 @@ export function TicketPurchase() {
 
         <Button
           onClick={handleBuyTickets}
-          disabled={isBuying || isLoading || !isConnected}
+          disabled={isBuying || isLoading || (mounted && !isConnected)}
           className="w-full h-14 text-lg bg-primary hover:bg-primary/90 text-primary-foreground"
         >
           {isBuying ? (
@@ -220,7 +226,7 @@ export function TicketPurchase() {
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Processing transaction...
             </>
-          ) : isConnected ? (
+          ) : mounted && isConnected ? (
             `Buy ${ticketCount} ${ticketCount === 1 ? "Ticket" : "Tickets"}`
           ) : (
             "Connect Wallet to Buy"

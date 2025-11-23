@@ -8,7 +8,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 
 export function LotteryDisplay() {
-  const { dayInfo, formattedJackpot, isLoading } = useLottery()
+  const { isLoading } = useLottery()
   const [timeUntilMidnight, setTimeUntilMidnight] = useState("")
   const [timeParts, setTimeParts] = useState({ hours: 0, minutes: 0, seconds: 0 })
   const [demoMode, setDemoMode] = useState(false)
@@ -46,13 +46,11 @@ export function LotteryDisplay() {
         return
       }
 
-      // Normal mode: use real blockchain data
-      if (!dayInfo) return
-
+      // Normal mode: calculate time until next midnight UTC
       const now = Date.now()
-      const startTime = Number(dayInfo.startTime) * 1000
-      const dayInMs = 24 * 60 * 60 * 1000
-      const nextMidnight = startTime + dayInMs
+      const utcMidnight = new Date()
+      utcMidnight.setUTCHours(24, 0, 0, 0) // Next midnight UTC
+      const nextMidnight = utcMidnight.getTime()
       const timeLeft = nextMidnight - now
 
       if (timeLeft <= 0) {
@@ -72,7 +70,7 @@ export function LotteryDisplay() {
     updateTime()
     const interval = setInterval(updateTime, 1000)
     return () => clearInterval(interval)
-  }, [dayInfo, demoMode, isDrawing])
+  }, [demoMode, isDrawing])
 
   const triggerDrawing = async () => {
     setIsDrawing(true)
@@ -110,18 +108,16 @@ export function LotteryDisplay() {
     setSelectedWinner(null)
     setIsDrawing(false)
     setDemoMode(false)
-    // Reset timer to real time
-    if (dayInfo) {
-      const now = Date.now()
-      const startTime = Number(dayInfo.startTime) * 1000
-      const dayInMs = 24 * 60 * 60 * 1000
-      const nextMidnight = startTime + dayInMs
-      const timeLeft = nextMidnight - now
-      const hours = Math.floor(timeLeft / (1000 * 60 * 60))
-      const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000)
-      setTimeParts({ hours, minutes, seconds })
-    }
+    // Reset timer to real time (next midnight UTC)
+    const now = Date.now()
+    const utcMidnight = new Date()
+    utcMidnight.setUTCHours(24, 0, 0, 0)
+    const nextMidnight = utcMidnight.getTime()
+    const timeLeft = nextMidnight - now
+    const hours = Math.floor(timeLeft / (1000 * 60 * 60))
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000)
+    setTimeParts({ hours, minutes, seconds })
   }
 
   const startDemo = () => {
@@ -129,9 +125,9 @@ export function LotteryDisplay() {
     setTimeParts({ hours: 0, minutes: 0, seconds: 3 })
   }
 
-  const jackpotNum = dayInfo ? Number(dayInfo.jackpot) / 1_000_000 : 0
-  const monthlyPayment = jackpotNum / 120
-  const ticketCount = dayInfo ? Number(dayInfo.ticketCount) : 0
+  const jackpotNum = 0 // Removed - no longer fetching from contract
+  const monthlyPayment = 0
+  const ticketCount = 0
 
   return (
     <div className="space-y-6">
@@ -159,10 +155,7 @@ export function LotteryDisplay() {
                 </div>
               ) : (
                 <div className="text-5xl md:text-7xl font-bold text-primary tracking-tight">
-                  ${parseFloat(formattedJackpot).toLocaleString(undefined, { 
-                    maximumFractionDigits: 0,
-                    minimumFractionDigits: 0 
-                  })}
+                  $0
                 </div>
               )}
             </div>

@@ -7,17 +7,15 @@ import { useLottery } from "@/hooks/useLottery"
 import { useEffect, useState } from "react"
 
 export function Hero() {
-  const { dayInfo, formattedJackpot, isLoading } = useLottery()
+  const { isLoading } = useLottery()
   const [timeUntilMidnight, setTimeUntilMidnight] = useState("")
 
   useEffect(() => {
     const updateTime = () => {
-      if (!dayInfo) return
-
       const now = Date.now()
-      const startTime = Number(dayInfo.startTime) * 1000
-      const dayInMs = 24 * 60 * 60 * 1000
-      const nextMidnight = startTime + dayInMs
+      const utcMidnight = new Date()
+      utcMidnight.setUTCHours(24, 0, 0, 0) // Next midnight UTC
+      const nextMidnight = utcMidnight.getTime()
       const timeLeft = nextMidnight - now
 
       if (timeLeft <= 0) {
@@ -35,10 +33,10 @@ export function Hero() {
     updateTime()
     const interval = setInterval(updateTime, 1000)
     return () => clearInterval(interval)
-  }, [dayInfo])
+  }, [])
 
-  const jackpotNum = dayInfo ? Number(dayInfo.jackpot) / 1_000_000 : 0
-  const ticketCount = dayInfo ? Number(dayInfo.ticketCount) : 0
+  const jackpotNum = 0
+  const ticketCount = 0
 
   return (
     <section className="relative pt-32 pb-20 px-4 overflow-hidden">
@@ -78,13 +76,9 @@ export function Hero() {
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-16">
             <div className="space-y-2">
-              {isLoading ? (
-                <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-              ) : (
-                <div className="text-4xl md:text-5xl font-bold text-primary">
-                  ${parseFloat(formattedJackpot).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </div>
-              )}
+              <div className="text-4xl md:text-5xl font-bold text-primary">
+                $0
+              </div>
               <div className="text-sm text-muted-foreground">Current Jackpot</div>
             </div>
             <div className="space-y-2">
