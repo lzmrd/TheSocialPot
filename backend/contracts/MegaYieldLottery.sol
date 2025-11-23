@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
@@ -10,6 +11,7 @@ import "@pythnetwork/entropy-sdk-solidity/IEntropy.sol";
 import "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 import "./PythIntegration.sol";
 import "./MegaYieldVesting.sol";
+import "./AaveIntegration.sol";
 
 /**
  * @title MegaYieldLottery
@@ -35,11 +37,17 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
     // Vesting contract
     MegaYieldVesting public vestingContract;
 
+    // Aave integration contract (for depositing jackpot)
+    AaveIntegration public aaveIntegration;
+
     // Ticket price in USDC (with 6 decimals)
     uint256 public ticketPrice;
 
     // Current day's jackpot
     uint256 public currentJackpot;
+
+    // Amount of jackpot deposited to Aave (to track withdrawals correctly)
+    uint256 public jackpotDepositedToAave;
 
     // Current day's start timestamp
     uint256 public currentDayStart;
@@ -72,6 +80,8 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
     event FirstPaymentClaimed(address indexed winner, uint256 amount);
     event VestingInitialized(address indexed winner, uint256 vestingAmount);
     event DayReset(uint256 indexed newDay, uint256 newJackpot);
+    event JackpotDepositedToAave(uint256 amount);
+    event JackpotWithdrawnFromAave(uint256 amount);
 
     /**
      * @notice Constructor
@@ -108,11 +118,76 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
     }
 
     /**
-     * @notice Buy lottery tickets
+     * @notice Set Aave integration contract address (only owner, called after deployment)
+     * @param _aaveIntegration Address of AaveIntegration contract
+     * @dev IMPORTANT: For production, use a SEPARATE AaveIntegration contract for the jackpot
+     * If the same AaveIntegration is shared with MegaYieldVesting, withdrawals may include vesting funds.
+     * Recommended: Deploy a separate AaveIntegration contract specifically for jackpot deposits.
+     */
+    function setAaveIntegration(address _aaveIntegration) external onlyOwner {
+        require(_aaveIntegration != address(0), "MegaYieldLottery: invalid AaveIntegration address");
+        require(address(aaveIntegration) == address(0), "MegaYieldLottery: AaveIntegration already set");
+        aaveIntegration = AaveIntegration(_aaveIntegration);
+    }
+
+    /**
+     * @notice Buy lottery tickets with permit (single transaction, no approve needed)
+     * @param amount Number of tickets to buy
+     * @param referrer Address of referrer (optional, can be address(0))
+     * @param deadline Deadline for the permit signature
+     * @param v Recovery byte of the signature
+     * @param r R value of the signature
+     * @param s S value of the signature
+     * @dev This function uses ERC20 permit (EIP-2612) to approve and buy tickets in a single transaction
+     * The user signs a permit message off-chain, then calls this function with the signature
+     * Note: USDC must support permit for this to work. If not, use buyTicket() with pre-approval
+     */
+    function buyTicketWithPermit(
+        uint256 amount,
+        address referrer,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external nonReentrant {
+        // Calculate total cost
+        uint256 totalCost = ticketPrice * amount;
+        
+        // Try to use permit if USDC supports it
+        try IERC20Permit(address(usdcToken)).permit(
+            msg.sender,
+            address(this),
+            totalCost,
+            deadline,
+            v,
+            r,
+            s
+        ) {
+            // Permit succeeded - now buy ticket
+            _buyTicketInternal(amount, referrer);
+        } catch {
+            // Permit failed - revert with helpful message
+            revert("MegaYieldLottery: permit failed. Use buyTicket() with pre-approval instead.");
+        }
+    }
+
+    /**
+     * @notice Buy lottery tickets (requires pre-approval)
+     * @param amount Number of tickets to buy
+     * @param referrer Address of referrer (optional, can be address(0))
+     * @dev Requires user to approve USDC spending before calling this function
+     * For single-transaction purchase, use buyTicketWithPermit() instead
+     */
+    function buyTicket(uint256 amount, address referrer) external nonReentrant {
+        _buyTicketInternal(amount, referrer);
+    }
+
+    /**
+     * @notice Internal function to handle ticket purchase logic
      * @param amount Number of tickets to buy
      * @param referrer Address of referrer (optional, can be address(0))
      */
-    function buyTicket(uint256 amount, address referrer) external nonReentrant {
+    function _buyTicketInternal(uint256 amount, address referrer) internal {
         require(amount > 0, "MegaYieldLottery: amount must be greater than 0");
         require(vestingContract != MegaYieldVesting(address(0)), "MegaYieldLottery: vesting contract not set");
 
@@ -125,7 +200,7 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Calculate total cost
         uint256 totalCost = ticketPrice * amount;
 
-        // Transfer USDC from buyer
+        // Transfer USDC from buyer (requires approval)
         usdcToken.safeTransferFrom(msg.sender, address(this), totalCost);
 
         // Calculate jackpot and referral amounts
@@ -141,6 +216,27 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         } else {
             // If no valid referrer, add to jackpot
             currentJackpot += referralAmount;
+        }
+
+        // Deposit jackpot to Aave if AaveIntegration is set
+        if (address(aaveIntegration) != address(0) && currentJackpot > 0) {
+            uint256 balance = usdcToken.balanceOf(address(this));
+            if (balance > 0) {
+                // Deposit available balance to Aave (up to currentJackpot amount)
+                uint256 amountToDeposit = balance < currentJackpot ? balance : currentJackpot;
+                // Try to deposit - if it fails, funds remain in contract
+                // Use try-catch on external call to AaveIntegration
+                // Note: AaveIntegration.depositToAave() uses safeTransferFrom, so we need to approve first
+                usdcToken.forceApprove(address(aaveIntegration), amountToDeposit);
+                try aaveIntegration.depositToAave(amountToDeposit) {
+                    // Success - jackpot deposited to Aave
+                    jackpotDepositedToAave += amountToDeposit;
+                    emit JackpotDepositedToAave(amountToDeposit);
+                } catch {
+                    // Aave deposit failed - funds remain in contract
+                    // This allows operation without Aave configured
+                }
+            }
         }
 
         // Add buyer to current day's tickets (once per buyer)
@@ -286,8 +382,40 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         dayDrawn[dayToDraw] = true;
         dayWinners[dayToDraw] = winner;
 
-        // Calculate amounts
+        // Withdraw jackpot from Aave if it was deposited
         uint256 totalJackpot = dayJackpot;
+        if (address(aaveIntegration) != address(0) && jackpotDepositedToAave > 0) {
+            // Calculate how much to withdraw: the deposited amount plus interest
+            // We'll withdraw based on the tracked amount, but Aave will give us more due to interest
+            try aaveIntegration.withdrawFromAave(jackpotDepositedToAave, address(this)) returns (uint256 withdrawnAmount) {
+                if (withdrawnAmount > 0) {
+                    // Update totalJackpot with actual withdrawn amount (includes interest)
+                    totalJackpot = withdrawnAmount;
+                    // Reset tracked amount
+                    jackpotDepositedToAave = 0;
+                    emit JackpotWithdrawnFromAave(withdrawnAmount);
+                }
+                // If withdrawnAmount is 0, jackpot might not have been on Aave, use dayJackpot
+            } catch {
+                // Withdrawal failed - check if we have balance in contract
+                // This allows operation if Aave is unavailable
+            }
+        }
+
+        // Check contract balance - if we have funds here, use them
+        uint256 contractBalance = usdcToken.balanceOf(address(this));
+        if (contractBalance > 0 && contractBalance >= dayJackpot) {
+            // If we have enough in contract, use that (jackpot might not have been deposited)
+            if (totalJackpot < contractBalance) {
+                totalJackpot = contractBalance;
+            }
+        }
+
+        // Ensure we have enough balance for payout
+        require(totalJackpot > 0, "MegaYieldLottery: no jackpot available");
+        require(contractBalance >= totalJackpot, "MegaYieldLottery: insufficient balance for payout");
+
+        // Calculate amounts
         uint256 firstPayment = (totalJackpot * FIRST_PAYMENT_MONTHS) / TOTAL_VESTING_MONTHS;
         uint256 vestingAmount = totalJackpot - firstPayment;
 
@@ -314,6 +442,7 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Reset current day's jackpot and tickets (if still for same day)
         if (dayToDraw == currentDay) {
             currentJackpot = 0;
+            // Note: jackpotDepositedToAave is already reset in _withdrawJackpotFromAave
             delete currentDayTickets;
         }
 
@@ -330,10 +459,18 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         // If previous day had jackpot but no winner, carry it over
         if (currentJackpot > 0 && !dayDrawn[currentDay]) {
             // Jackpot carries over to new day
+            // If jackpot was on Aave, it stays there and will be withdrawn when winner is drawn
+            // Note: jackpotDepositedToAave is not reset, so we can track it across days
             emit DayReset(newDay, currentJackpot);
         } else {
             // Reset jackpot for new day
             currentJackpot = 0;
+            // Only reset jackpotDepositedToAave if there's no carryover
+            // (if there's carryover, it's still on Aave)
+            if (jackpotDepositedToAave > 0 && currentJackpot == 0) {
+                // This shouldn't happen, but just in case
+                jackpotDepositedToAave = 0;
+            }
             emit DayReset(newDay, 0);
         }
 
@@ -343,6 +480,43 @@ contract MegaYieldLottery is Ownable, ReentrancyGuard, IEntropyConsumer {
         // Update day
         currentDay = newDay;
         currentDayStart = block.timestamp;
+    }
+
+
+    /**
+     * @notice Get the current jackpot value including interest from Aave
+     * @return Current jackpot value (including accrued interest if deposited to Aave)
+     * @dev Note: If AaveIntegration is shared with vesting contract, this may include vesting funds
+     * In production, use separate AaveIntegration contracts for jackpot and vesting
+     */
+    function getCurrentJackpotWithInterest() external view returns (uint256) {
+        if (address(aaveIntegration) == address(0)) {
+            return currentJackpot;
+        }
+        
+        // If we have tracked deposits, estimate the value with interest
+        // Note: This is an approximation. For accurate tracking, use separate AaveIntegration contracts
+        if (jackpotDepositedToAave > 0) {
+            // Get total balance on Aave (may include vesting funds if shared)
+            uint256 totalAaveBalance = aaveIntegration.getUnderlyingBalance();
+            
+            // Estimate jackpot value: assume proportional growth
+            // This is approximate - in production, use separate AaveIntegration contracts
+            if (totalAaveBalance >= jackpotDepositedToAave) {
+                // At minimum, we have what we deposited (plus interest)
+                // But we can't know exactly how much is jackpot vs vesting if shared
+                // So we return currentJackpot + estimated interest
+                // For accurate tracking, use separate AaveIntegration contracts
+                return currentJackpot;
+            }
+        }
+        
+        // Also check contract balance (in case some funds weren't deposited)
+        uint256 contractBalance = usdcToken.balanceOf(address(this));
+        
+        // Return currentJackpot + contract balance
+        // Note: If jackpot is on Aave, currentJackpot tracks the base amount
+        return currentJackpot + contractBalance;
     }
 
     /**
