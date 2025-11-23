@@ -1,9 +1,9 @@
-import { createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from "viem"
+import { createPublicClient, createWalletClient, http } from "viem"
 import { baseSepolia } from "viem/chains"
 import { BASE_SEPOLIA_CHAIN_ID, NETWORK_CONFIG } from "@/config/contracts"
 
 // Create public client for read operations
-export function getPublicClient(): PublicClient {
+export function getPublicClient() {
   const config = NETWORK_CONFIG[BASE_SEPOLIA_CHAIN_ID]
   return createPublicClient({
     chain: baseSepolia,
@@ -12,8 +12,8 @@ export function getPublicClient(): PublicClient {
 }
 
 // Create wallet client from window.ethereum
-export function getWalletClient(): WalletClient | null {
-  if (typeof window === "undefined" || !window.ethereum) {
+export function getWalletClient() {
+  if (typeof window === "undefined" || !(window as any).ethereum) {
     return null
   }
 

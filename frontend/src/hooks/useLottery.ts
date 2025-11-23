@@ -26,27 +26,30 @@ export function useLottery() {
   const usdcAddress = CONTRACT_ADDRESSES.baseSepolia.usdc as `0x${string}`
 
   // Read contract data
-  const { data: ticketPrice } = useReadContract({
+  const { data: ticketPriceData } = useReadContract({
     address: lotteryAddress,
     abi: LOTTERY_ABI,
     functionName: "ticketPrice",
   })
+  const ticketPrice = ticketPriceData as bigint | undefined
 
-  const { data: usdcBalance } = useReadContract({
+  const { data: usdcBalanceData } = useReadContract({
     address: usdcAddress,
     abi: ERC20_ABI,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   })
+  const usdcBalance = usdcBalanceData as bigint | undefined
 
-  const { data: usdcAllowance } = useReadContract({
+  const { data: usdcAllowanceData } = useReadContract({
     address: usdcAddress,
     abi: ERC20_ABI,
     functionName: "allowance",
     args: address ? [address, lotteryAddress] : undefined,
     query: { enabled: !!address },
   })
+  const usdcAllowance = usdcAllowanceData as bigint | undefined
 
   // Watch for ticket purchase events
   useWatchContractEvent({
@@ -85,7 +88,7 @@ export function useLottery() {
         // If we have a pending purchase, automatically execute it after approval
         if (pendingPurchaseRef.current && ticketPrice && address) {
           const { amount, referrer } = pendingPurchaseRef.current
-          const totalCost = ticketPrice * BigInt(amount)
+          const totalCost = BigInt(ticketPrice) * BigInt(amount)
           const referrerAddress = referrer && referrer.trim() 
             ? (referrer.trim() as `0x${string}`) 
             : "0x0000000000000000000000000000000000000000"
@@ -117,7 +120,7 @@ export function useLottery() {
       throw new Error("Wallet not connected")
     }
 
-    const totalCost = ticketPrice * BigInt(amount)
+    const totalCost = BigInt(ticketPrice) * BigInt(amount)
     const referrerAddress = referrer && referrer.trim() ? (referrer.trim() as `0x${string}`) : "0x0000000000000000000000000000000000000000"
 
     // Check if we need to approve

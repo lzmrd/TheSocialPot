@@ -1,4 +1,3 @@
-import { getDefaultConfig } from "@wagmi/core"
 import { baseSepolia } from "viem/chains"
 import { createConfig, http } from "wagmi"
 
