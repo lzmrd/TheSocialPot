@@ -39,7 +39,7 @@ export function Hero() {
   const ticketCount = 0
 
   return (
-    <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+    <section className="relative pt-40 pb-20 px-4 overflow-hidden">
       {/* Background gradient effect */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-accent/15 via-background to-primary/10" />
 
@@ -51,14 +51,18 @@ export function Hero() {
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-balance">
-            Win Today, <span className="text-primary">Earn</span> for 10 Years
+            Win Today, <span className="text-primary">Give</span> Tomorrow
           </h1>
 
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto text-balance leading-relaxed">
             {
-              "The smart lottery that pays you monthly. Buy tickets for just 1 USDC, win daily drawings, and receive guaranteed monthly payments for 120 months through DeFi lending."
+              "The smart lottery that pays you monthly and funds social projects. Buy tickets for just 1 USDC, win daily drawings, receive guaranteed monthly payments for 120 months, and help finance projects addressing health, housing, and food crises."
             }
           </p>
+          
+          <div className="text-lg text-muted-foreground font-medium">
+            WIN. GIVE. GROW.
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Link href="/tickets">
@@ -77,7 +81,7 @@ export function Hero() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-16">
             <div className="space-y-2">
               <div className="text-4xl md:text-5xl font-bold text-primary">
-                $0
+                $ 990687
               </div>
               <div className="text-sm text-muted-foreground">Current Jackpot</div>
             </div>

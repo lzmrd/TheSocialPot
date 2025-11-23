@@ -9,9 +9,9 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MegaYield - Smart Lottery with 10-Year Monthly Payouts",
+  title: "The Social Pot - Win, Give, Grow",
   description:
-    "Win daily and receive monthly payments for 10 years. Powered by blockchain technology and Aave lending protocol.",
+    "The smart lottery that pays you monthly and funds social projects. Win daily, receive 10-year monthly payouts, and help finance projects addressing health, housing, and food crises. WIN. GIVE. GROW.",
   generator: "v0.app",
   icons: {
     icon: "/logo.png?v=2",

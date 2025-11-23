@@ -5,13 +5,12 @@ import { Footer } from "@/components/footer"
 import { TicketPurchase } from "@/components/ticket-purchase"
 import { JackpotInfo } from "@/components/jackpot-info"
 import { RecentWinners } from "@/components/recent-winners"
-import { PythVerification } from "@/components/pyth-verification"
 
 export default function TicketsPage() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="pt-24 pb-16 px-4">
+      <main className="pt-40 pb-16 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-12">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Buy Lottery Tickets</h1>
@@ -27,7 +26,6 @@ export default function TicketsPage() {
             <div className="space-y-6">
               <JackpotInfo />
               <RecentWinners />
-              <PythVerification />
             </div>
           </div>
         </div>

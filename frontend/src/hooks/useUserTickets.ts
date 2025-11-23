@@ -6,7 +6,8 @@ import { CONTRACT_ADDRESSES, NETWORK_CONFIG } from "@/config/contracts"
 import lotteryAbi from "@/abis/MegaYieldLottery.json"
 import { formatUnits, decodeEventLog } from "viem"
 
-const LOTTERY_ABI = lotteryAbi as any
+// Extract ABI from Hardhat artifact (which has structure { abi: [...] })
+const LOTTERY_ABI = (lotteryAbi as any).abi || lotteryAbi
 const SECONDS_PER_DAY = BigInt(86400)
 
 export interface UserTicket {
@@ -233,34 +234,59 @@ export function useUserTickets() {
 
 function formatDrawDate(date: Date, isToday: boolean): string {
   if (isToday) {
-    return "Today, 12:00 AM UTC"
+    // Mostra l'ora reale della transazione
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    })
+    return `Today, ${timeStr} UTC`
   }
 
   const now = new Date()
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   
-  const dateStr = date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-  })
-
   // Check if it's yesterday
   if (
     date.getDate() === yesterday.getDate() &&
     date.getMonth() === yesterday.getMonth() &&
     date.getFullYear() === yesterday.getFullYear()
   ) {
-    return "Yesterday"
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    })
+    return `Yesterday, ${timeStr} UTC`
   }
 
   // Check if it's within the last week
   const daysDiff = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
   if (daysDiff <= 7) {
-    return `${daysDiff} day${daysDiff === 1 ? "" : "s"} ago`
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    })
+    return `${daysDiff} day${daysDiff === 1 ? "" : "s"} ago, ${timeStr} UTC`
   }
 
-  return dateStr
+  // For older dates, show full date and time
+  const dateStr = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  })
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  })
+  return `${dateStr}, ${timeStr} UTC`
 }
 

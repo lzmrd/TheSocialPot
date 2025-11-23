@@ -48,15 +48,22 @@ export function TicketPurchase() {
       return
     }
 
-    if (!ticketPrice) {
-      toast.error("Loading ticket price...")
+    // Allow purchase even if ticketPrice is not loaded yet (will use default 1 USDC)
+    if (isLoading) {
+      toast.info("Loading ticket price, please wait...")
       return
     }
 
     try {
+      console.log("Calling buyTickets...", { ticketCount, referralCode, ticketPrice })
       await buyTickets(ticketCount, referralCode || undefined)
+      console.log("buyTickets called successfully")
       // Note: buyTickets will handle approval and purchase
       // Success will be handled by the hook watching for events
+      // Show info toast that transaction is being prompted
+      toast.info("Please confirm the transaction in your wallet", {
+        duration: 5000,
+      })
     } catch (error: any) {
       console.error("Error buying tickets:", error)
       toast.error("Failed to buy tickets", {
@@ -146,7 +153,7 @@ export function TicketPurchase() {
                   max="100"
                   value={ticketCount}
                   onChange={(e) => setTicketCount(Math.max(1, Math.min(100, Number.parseInt(e.target.value) || 1)))}
-                  className="text-center text-2xl font-bold h-12"
+                  className="text-center text-2xl font-bold h-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
                 />
               </div>
               <Button
@@ -218,8 +225,8 @@ export function TicketPurchase() {
 
         <Button
           onClick={handleBuyTickets}
-          disabled={isBuying || isLoading || (mounted && !isConnected)}
-          className="w-full h-14 text-lg bg-primary hover:bg-primary/90 text-primary-foreground"
+          disabled={isBuying || (mounted && !isConnected)}
+          className="w-full h-14 text-lg bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isBuying ? (
             <>

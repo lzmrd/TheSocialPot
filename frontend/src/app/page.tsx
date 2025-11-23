@@ -3,6 +3,7 @@ import { Hero } from "@/components/hero"
 import { LotteryDisplay } from "@/components/lottery-display"
 import { Features } from "@/components/features"
 import { HowItWorks } from "@/components/how-it-works"
+import { SocialImpact } from "@/components/social-impact"
 import { Footer } from "@/components/footer"
 
 export default function Home() {
@@ -18,6 +19,7 @@ export default function Home() {
         </section>
         <Features />
         <HowItWorks />
+        <SocialImpact />
       </main>
       <Footer />
     </div>

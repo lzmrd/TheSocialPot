@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card"
-import { TrendingUp, Calendar, Wallet, Shield, Users, Zap } from "lucide-react"
+import { TrendingUp, Calendar, Heart, Shield, Users, Zap } from "lucide-react"
 
 const features = [
   {
@@ -13,9 +13,9 @@ const features = [
     description: "Receive guaranteed monthly payments for 120 months. Set it and forget it, we handle the rest.",
   },
   {
-    icon: Wallet,
-    title: "Low Entry Cost",
-    description: "Just 1 USDC per ticket. Affordable entry with the potential for life-changing returns.",
+    icon: Heart,
+    title: "Social Impact",
+    description: "Every ticket purchase funds social projects addressing health, housing, and food crises. Win for yourself, give back to the world.",
   },
   {
     icon: Shield,
@@ -36,12 +36,12 @@ const features = [
 
 export function Features() {
   return (
-    <section id="how-it-works" className="py-24 px-4 bg-muted/30">
+    <section id="how-it-works" className="pt-40 pb-24 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
-        <div className="text-center space-y-4 mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Why Choose MegaYield?</h2>
+        <div className="text-center space-y-4 mb-12">
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Why Choose The Social Pot?</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
-            The most innovative lottery system built on blockchain technology with DeFi integration
+            The most innovative lottery system that combines winning, earning, and social impact
           </p>
         </div>
 

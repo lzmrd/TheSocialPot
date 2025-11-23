@@ -9,12 +9,12 @@ export function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-                <img src="/logo.png" alt="MegaYield" width={40} height={40} className="w-full h-full object-contain" />
+                <img src="/logo.png" alt="The Social Pot" width={40} height={40} className="w-full h-full object-contain" />
               </div>
-              <span className="text-xl font-bold">MegaYield</span>
+              <span className="text-xl font-bold">The Social Pot</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              The smart lottery with 10-year monthly payouts powered by blockchain and DeFi.
+              The smart lottery that pays you monthly and funds social projects. WIN. GIVE. GROW.
             </p>
           </div>
 
@@ -77,7 +77,7 @@ export function Footer() {
         </div>
 
         <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">© 2025 MegaYield. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2025 The Social Pot. All rights reserved.</p>
           <div className="flex gap-6">
             <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Privacy Policy

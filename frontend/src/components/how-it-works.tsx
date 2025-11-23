@@ -23,19 +23,19 @@ const steps = [
   {
     icon: Calendar,
     step: "04",
-    title: "10 Years of Payouts",
-    description: "Remaining funds deposited on Aave. Claim your monthly payment for the next 119 months.",
+    title: "10 Years of Payouts & Social Impact",
+    description: "Remaining funds deposited on Aave. Claim your monthly payment for the next 119 months. The interest generated (~$7M annually) funds social projects addressing health, housing, and food crises.",
   },
 ]
 
 export function HowItWorks() {
   return (
-    <section className="py-24 px-4">
+    <section className="pt-40 pb-24 px-4">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center space-y-4 mb-16">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">How It Works</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
-            Four simple steps to start your journey toward long-term financial growth
+            Four simple steps to win, earn, and make a positive social impact
           </p>
         </div>
 
@@ -56,9 +56,6 @@ export function HowItWorks() {
                     <p className="text-muted-foreground leading-relaxed">{step.description}</p>
                   </div>
                 </Card>
-                {index < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-1/2 -right-4 w-8 h-0.5 bg-border" />
-                )}
               </div>
             )
           })}

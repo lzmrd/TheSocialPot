@@ -11,7 +11,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="pt-24 pb-16 px-4">
+      <main className="pt-40 pb-16 px-4">
         <div className="container mx-auto max-w-7xl">
           <div className="space-y-4 mb-8">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Dashboard</h1>

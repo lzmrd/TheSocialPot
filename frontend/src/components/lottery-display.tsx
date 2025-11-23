@@ -6,6 +6,7 @@ import { TrendingUp, Clock, Users, Sparkles, Loader2, Zap, Trophy } from "lucide
 import { useLottery } from "@/hooks/useLottery"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { SplitFlapBoard } from "./split-flap-board"
 
 export function LotteryDisplay() {
   const { isLoading } = useLottery()
@@ -13,8 +14,10 @@ export function LotteryDisplay() {
   const [timeParts, setTimeParts] = useState({ hours: 0, minutes: 0, seconds: 0 })
   const [demoMode, setDemoMode] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
-  const [drawingStage, setDrawingStage] = useState<'idle' | 'requesting' | 'selecting' | 'revealing' | 'complete'>('idle')
+  const [drawingStage, setDrawingStage] = useState<'idle' | 'requesting' | 'revealing' | 'complete'>('idle')
   const [selectedWinner, setSelectedWinner] = useState<string | null>(null)
+  const [ticketCodes, setTicketCodes] = useState<Array<{ id: string; code: string }>>([])
+  const [winnerTicketId, setWinnerTicketId] = useState<string | null>(null)
 
   useEffect(() => {
     const updateTime = () => {
@@ -76,14 +79,32 @@ export function LotteryDisplay() {
     setIsDrawing(true)
     setDrawingStage('requesting')
 
+    // Genera biglietti mock per la demo
+    const generateMockTickets = () => {
+      const mockTickets: Array<{ id: string; code: string }> = []
+      const count = Math.floor(Math.random() * 8) + 5 // 5-12 biglietti
+      
+      for (let i = 0; i < count; i++) {
+        const txHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`
+        const logIndex = Math.floor(Math.random() * 100)
+        const ticketId = `${txHash}-${logIndex}`
+        mockTickets.push({ id: ticketId, code: "" })
+      }
+      
+      return mockTickets
+    }
+
+    const mockTickets = generateMockTickets()
+    setTicketCodes(mockTickets)
+
+    // Seleziona un biglietto vincente casuale dai biglietti generati
+    const winnerTicket = mockTickets[Math.floor(Math.random() * mockTickets.length)]
+    setWinnerTicketId(winnerTicket.id)
+
     // Stage 1: Requesting random number (2 seconds)
     await new Promise(resolve => setTimeout(resolve, 2000))
-    setDrawingStage('selecting')
-
-    // Stage 2: Selecting winner (3 seconds)
-    await new Promise(resolve => setTimeout(resolve, 3000))
     
-    // Mock winner selection
+    // Mock winner selection (indirizzo del vincitore)
     const mockWinners = [
       "0x742d...a8f2",
       "0x9a3b...4c12",
@@ -96,8 +117,8 @@ export function LotteryDisplay() {
     setSelectedWinner(winnerAddress)
     setDrawingStage('revealing')
 
-    // Stage 3: Revealing winner (2 seconds)
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Stage 2: Revealing winner (6 secondi - più tempo per vedere il vincitore)
+    await new Promise(resolve => setTimeout(resolve, 6000))
     setDrawingStage('complete')
 
     // Stage 4: Complete (2 seconds)
@@ -106,8 +127,12 @@ export function LotteryDisplay() {
     // Reset
     setDrawingStage('idle')
     setSelectedWinner(null)
+    setTicketCodes([])
+    setWinnerTicketId(null)
     setIsDrawing(false)
     setDemoMode(false)
+    // Piccolo delay per permettere al componente di resettarsi
+    await new Promise(resolve => setTimeout(resolve, 100))
     // Reset timer to real time (next midnight UTC)
     const now = Date.now()
     const utcMidnight = new Date()
@@ -125,9 +150,12 @@ export function LotteryDisplay() {
     setTimeParts({ hours: 0, minutes: 0, seconds: 3 })
   }
 
-  const jackpotNum = 0 // Removed - no longer fetching from contract
-  const monthlyPayment = 0
-  const ticketCount = 0
+  const jackpotNum = 990687 // Mock jackpot per la demo
+  // Calcola il pagamento mensile: jackpot diviso 120 mesi
+  const monthlyPayment = jackpotNum / 120
+  // Calcola i biglietti venduti: se il 70% va al jackpot e ogni biglietto costa $1,
+  // allora: jackpot / 0.70 = totale raccolto = numero di biglietti venduti
+  const ticketCount = Math.floor(jackpotNum / 0.70)
 
   return (
     <div className="space-y-6">
@@ -155,7 +183,7 @@ export function LotteryDisplay() {
                 </div>
               ) : (
                 <div className="text-5xl md:text-7xl font-bold text-primary tracking-tight">
-                  $0
+                  $990687
                 </div>
               )}
             </div>
@@ -205,7 +233,8 @@ export function LotteryDisplay() {
                   className="text-lg px-8 py-6 border-2"
                 >
                   <Zap className="w-4 h-4 mr-2" />
-                  Demo Estrazione
+                  Demo 
+                
                 </Button>
               )}
             </div>
@@ -291,24 +320,7 @@ export function LotteryDisplay() {
               </div>
             )}
 
-            {/* Stage 2: Selecting Winner */}
-            {drawingStage === 'selecting' && (
-              <div className="bg-background border-2 border-accent rounded-lg p-12 text-center animate-in fade-in duration-500">
-                <h2 className="text-4xl font-bold mb-6 text-accent">Selecting Winner</h2>
-                <p className="text-xl text-muted-foreground mb-8">Randomizing from participants...</p>
-                
-                <div className="mt-8">
-                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-accent transition-all duration-[3000ms] ease-in-out"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Stage 3: Revealing Winner */}
+            {/* Stage 2: Revealing Winner */}
             {drawingStage === 'revealing' && selectedWinner && (
               <div className="bg-gradient-to-br from-green-500/20 to-primary/20 border-2 border-green-500 rounded-lg p-12 text-center animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-32 h-32 bg-green-500 rounded-full mx-auto mb-6 flex items-center justify-center animate-in zoom-in-95 duration-500">
@@ -317,6 +329,18 @@ export function LotteryDisplay() {
                 <h2 className="text-5xl font-bold mb-4 text-green-600 dark:text-green-400 animate-in slide-in-from-bottom-4 duration-500">
                   🎉 Winner Found! 🎉
                 </h2>
+                
+                {/* Mostra il tabellone con il biglietto vincente - statico, senza animazioni */}
+                <div className="mt-8 mb-8">
+                  <SplitFlapBoard 
+                    tickets={ticketCodes} 
+                    isAnimating={false}
+                    winnerTicketId={winnerTicketId}
+                    showWinnerStatic={true}
+                    className="max-w-4xl mx-auto"
+                  />
+                </div>
+
                 <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '0.5s' }}>
                   <p className="text-2xl font-mono font-bold text-foreground mb-2">
                     {selectedWinner}
